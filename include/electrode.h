@@ -273,37 +273,100 @@ double GetCannulaPosition(uint8_t id)
         Serial.println("--------------------------------------");
 #endif
     }
-    double step = ret;
 
-    // 获得该servo的装配状态位置
-    int16_t withdrawPosition = servos[servoID - 1].withdrawPosition;
-    // 获得该servo的收回状态位置
-    int16_t assemblyPosition = servos[servoID - 1].assemblyPosition;
-    // 根据servo的位置计算cannula对应的位置
-    double position = (step - withdrawPosition) * (0 - CANNULA_STROKE) / (withdrawPosition - assemblyPosition);
+    if (ret != -2048 && ret != -2049)
+    {
+        double step = ret;
+
+        // withdrawPosition    <===>    assemblyPosition     <===>     step
+        // 0                   <===>    CANNULA_STROKE        <===>     answer
+
+        // 获得该servo的装配状态位置
+        int16_t withdrawPosition = servos[servoID - 1].withdrawPosition;
+        // 获得该servo的收回状态位置
+        int16_t assemblyPosition = servos[servoID - 1].assemblyPosition;
+        // 根据servo的位置计算cannula对应的位置
+        double position = (step - withdrawPosition) * (0 - CANNULA_STROKE) / (withdrawPosition - assemblyPosition);
 
 #ifdef ELECTRODE_DEBUG
-    Serial.println("--------------------------------------");
-    Serial.print("Current Position: ");
-    Serial.print(position);
-    Serial.print(" mm");
-    Serial.print("  ");
-    Serial.print("step ");
-    Serial.println(step);
-    Serial.println("--------------------------------------");
+        Serial.println("--------------------------------------");
+        Serial.print("Sub-electrode id: ");
+        Serial.print(id);
+        Serial.print(", Current Cannula position: ");
+        Serial.print(position);
+        Serial.print(" mm");
+        Serial.print("  ");
+        Serial.print("step ");
+        Serial.println(step);
+        Serial.println("--------------------------------------");
 #endif
-
-    // 可能出现获取到的位置有问题的情况，需要仔细考虑获取到的位置有误时应该如何处理
-    return constrain(position, 0, 20);
+        return constrain(position, 0, 20);
+    }
+    else
+    {
+        // 可能出现获取到的位置有问题的情况
+        return -1;
+    }
 }
 
-double GetStyletPosition(uint8_t cannulaID)
+double GetStyletPosition(uint8_t id)
 {
-    uint8_t servoID = sub_electrodes[cannulaID - 1].styletServoID;
-    double step = LobotSerialServoReadPosition(CONTROL_SERIAL, servoID);
-    int16_t withdrawPosition = servos[servoID - 1].withdrawPosition;
-    int16_t assemblyPosition = servos[servoID - 1].assemblyPosition;
-    return (step - withdrawPosition) * (0 - STYLET_STROKE) / (withdrawPosition - assemblyPosition);
+    // 获得该stylet对应的servo ID
+    uint8_t servoID = sub_electrodes[id - 1].styletServoID;
+
+    // 获得该servo的位置,若获取出错（无响应或者处理出错，则重试）
+    uint8_t count = 5;
+    int ret;
+    while (count > 0)
+    {
+        ret = LobotSerialServoReadPosition(CONTROL_SERIAL, servoID);
+        if (ret != -2048 && ret != -2049)
+        {
+            break;
+        }
+        count--;
+#ifdef ELECTRODE_DEBUG
+        Serial.println("--------------------------------------");
+        Serial.print("Get Stylet Position ERROR!   ");
+        Serial.print("TRIED TIMES: ");
+        Serial.println(5 - count);
+        Serial.println("--------------------------------------");
+#endif
+    }
+
+    if (ret != -2048 && ret != -2049)
+    {
+        double step = ret;
+
+        // withdrawPosition    <===>    assemblyPosition     <===>     step
+        // 0                   <===>    STYLET_STROKE        <===>     answer
+
+        // 获得该servo的装配状态位置
+        int16_t withdrawPosition = servos[servoID - 1].withdrawPosition;
+        // 获得该servo的收回状态位置
+        int16_t assemblyPosition = servos[servoID - 1].assemblyPosition;
+        // 根据servo的位置计算stylet对应的位置
+        double position = (step - withdrawPosition) * (0 - STYLET_STROKE) / (withdrawPosition - assemblyPosition);
+
+#ifdef ELECTRODE_DEBUG
+        Serial.println("--------------------------------------");
+        Serial.print("Sub-electrode id: ");
+        Serial.print(id);
+        Serial.print(", Current Stylet position: ");
+        Serial.print(position);
+        Serial.print(" mm");
+        Serial.print("  ");
+        Serial.print("step ");
+        Serial.println(step);
+        Serial.println("--------------------------------------");
+#endif
+        return constrain(position, 0, 52);
+    }
+    else
+    {
+        // 可能出现获取到的位置有问题的情况
+        return -1;
+    }
 }
 
 /* 
@@ -315,7 +378,7 @@ double GetStyletPosition(uint8_t cannulaID)
 
 注意：运行此函数以堵塞方式运行，直到运动到收回状态
 */
-void ElectrodePositionWithdraw(uint16_t time)
+bool ElectrodePositionWithdraw(uint16_t time)
 {
     Serial.println("");
     Serial.println("#####################################################");
@@ -328,6 +391,14 @@ void ElectrodePositionWithdraw(uint16_t time)
 
         // 获得外套管位置
         double cannulaPosition = GetCannulaPosition(sub_electrodes[i].id);
+        if (cannulaPosition == -1)
+        {
+            Serial.println("*********** Cannula Position Fetch Error!  ***********");
+            Serial.println("*********** Electrode Withdraw ends! ***********");
+            Serial.println("#####################################################");
+            return false;
+        }
+
         // 将导丝收回至外套管中
         StyletMove(sub_electrodes[i].id, cannulaPosition, time);
     }
@@ -358,6 +429,8 @@ void ElectrodePositionWithdraw(uint16_t time)
     Serial.print(end_time - start_time);
     Serial.println(" ms");
     Serial.println("#####################################################");
+
+    return true;
 }
 
 /* 
@@ -370,7 +443,7 @@ void ElectrodePositionWithdraw(uint16_t time)
 
 注意：运行此函数将堵塞线程，直到运动到目标状态。
 */
-void ElectrodePositionExpand(double electrodePosition[6], uint16_t time)
+bool ElectrodePositionExpand(double electrodePosition[6], uint16_t time)
 {
     Serial.println("");
     Serial.println("#####################################################");
@@ -380,6 +453,14 @@ void ElectrodePositionExpand(double electrodePosition[6], uint16_t time)
     {
         // 获得外套管位置
         double cannulaPosition = GetCannulaPosition(sub_electrodes[i].id);
+        if (cannulaPosition == -1)
+        {
+            Serial.println("*********** Cannula Position Fetch Error!  ***********");
+            Serial.println("*********** Electrode Withdraw ends! ***********");
+            Serial.println("#####################################################");
+            return false;
+        }
+
         // 将导丝收回至外套管中
         StyletMove(sub_electrodes[i].id, cannulaPosition, time);
     }
@@ -411,6 +492,7 @@ void ElectrodePositionExpand(double electrodePosition[6], uint16_t time)
     Serial.print(end_time - start_time);
     Serial.println(" ms");
     Serial.println("#####################################################");
+    return true;
 }
 
 /* 装配位置初始化函数 */
@@ -468,7 +550,7 @@ void BackToAssemblyPosition()
 void AblationElectrodeInit()
 {
     // 设置串口0的波特率
-    Serial.begin(115200);
+    Serial.begin(9600);
 
     // 设置控制信号串口的波特率
     CONTROL_SERIAL.begin(115200);

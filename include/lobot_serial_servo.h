@@ -35,7 +35,7 @@
 #define LOBOT_SERVO_LED_ERROR_WRITE 35
 #define LOBOT_SERVO_LED_ERROR_READ 36
 
-#define LOBOT_DEBUG 1 /*调试使用，打印调试数据*/
+// #define LOBOT_DEBUG 1 /*调试使用，打印调试数据*/
 
 // 计算校验位
 byte LobotCheckSum(byte buf[])

@@ -1,4 +1,4 @@
-/* 
+/*
 Test the basic operation logic of ablation electrode.
 
 HARDWARE:
@@ -6,39 +6,25 @@ HARDWARE:
   Connect the servo to the BusLinker board.
 
 SERIAL CONTROL:
-1. hardware serial control
 
-  BusLinker-V2.2        ARDUINO_MEGA2560 or NANO
+  BusLinker-V2.2        ARDUINO_MEGA2560
   -------------------------------
   GND(Power)            GND
 
   5V                    5V
-  TX                    RX0
-  RX                    TX0
+  TX                    RX1
+  RX                    TX1
   GND(Control)          GND
   -------------------------------
 
-  AVARIABLE CONTROL SERIAL
-    MEGA  Serial, Serial1, Serial2, Serial3
-    NANO  Serial
+  AVARIABLE CONTROL SERIAL ON MEGA2560
+        SERIAL1    SERIAL2    SERIAL3
+  RX      D19        D17        D15
+  TX      D18        D16        D14
 
-  USING Serial to control will interfere with with the program uploading, 
+  USING Serial to control will interfere with with the program uploading,
   so serial connections should be temperarily removed until uploading was done.
-
-2. software serial control (using SoftwareSerial lib)
-
-  BusLinker-V2.2        ARDUINO_NANO
-  -------------------------------
-  GND(Power)            GND
-
-  5V                    5V
-  TX                    D4
-  RX                    D3
-  GND(Control)          GND
-  -------------------------------
-
-NOTES:
-  Following code are written based on approach 1. */
+  */
 
 #include <Arduino.h>
 #include "lobot_serial_servo.h"
@@ -49,42 +35,52 @@ double electrodePositions[6] = {5, 20, 10, 25, 20, 45};
 
 void setup()
 {
-  // put your setup code here, to run once:
-  AblationElectrodeInit();
+    // put your setup code here, to run once:
+    AblationElectrodeInit();
 }
 
 void loop()
 {
-  // put your main code here, to run repeatedly:
+    // put your main code here, to run repeatedly:
 
-  if (Serial.available() > 0)
-  {
-    while (Serial.available() > 0)
+    if (Serial.available() > 0)
     {
-      Serial.read();
+        while (Serial.available() > 0)
+        {
+            Serial.read();
+            delay(2);
+        }
+        // 启动展示
+        demoStart = true;
     }
-    // 启动展示
-    demoStart = true;
-  }
 
-  if (demoStart)
-  {
-    Serial.println("#####################################################");
-    Serial.println("*********** Demo Starts! ***********");
-    // 判断所给参数是否合理
-    if (CheckDestinationPosition(electrodePositions))
+    if (demoStart)
     {
-      // 先整体全部收回
-      ElectrodePositionWithdraw(15000);
-      // 进行电极展开
-      ElectrodePositionExpand(electrodePositions, 15000);
-      // 再整体全部返回装配位置，等待下一次演示
-      BackToAssemblyPosition();
+        Serial.println("#####################################################");
+        Serial.println("*********** Demo Starts! ***********");
+        // 判断所给参数是否合理
+        if (CheckDestinationPosition(electrodePositions))
+        {
+            // 先整体全部收回
+            if (ElectrodePositionWithdraw(15000))
+            {
+                // 进行电极展开
+                if (ElectrodePositionExpand(electrodePositions, 15000))
+                {
+                    // 再整体全部返回装配位置，等待下一次演示
+                    BackToAssemblyPosition();
 
-      // 运行一遍后停止
-      demoStart = false;
-      Serial.println("*********** Demo end! ***********");
-      Serial.println("#####################################################");
+                    Serial.println("*********** Demo end! ***********");
+                    Serial.println("#####################################################");
+                }
+            }
+        }
+        else
+        {
+            Serial.println("*********** Target position needs to be checked! ***********");
+            Serial.println("*********** Demo end! ***********");
+            Serial.println("#####################################################");
+        }
+        demoStart = false;
     }
-  }
 }
