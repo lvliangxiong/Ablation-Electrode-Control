@@ -1,31 +1,3 @@
-/*
-Test the basic operation logic of ablation electrode.
-
-HARDWARE:
-  Attach the power input (Vin & GND) with the power source.
-  Connect the servo to the BusLinker board.
-
-SERIAL CONTROL:
-
-  BusLinker-V2.2        ARDUINO_MEGA2560
-  -------------------------------
-  GND(Power)            GND
-
-  5V                    5V
-  TX                    RX1
-  RX                    TX1
-  GND(Control)          GND
-  -------------------------------
-
-  AVARIABLE CONTROL SERIAL ON MEGA2560
-        SERIAL1    SERIAL2    SERIAL3
-  RX      D19        D17        D15
-  TX      D18        D16        D14
-
-  USING Serial to control will interfere with with the program uploading,
-  so serial connections should be temperarily removed until uploading was done.
-  */
-
 #include <Arduino.h>
 #include "lobot_serial_servo.h"
 #include "electrode.h"
