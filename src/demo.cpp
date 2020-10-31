@@ -20,7 +20,7 @@ void loop()
         while (Serial.available() > 0)
         {
             Serial.read();
-            delay(2);
+            delay(5);
         }
         // 启动展示
         demoStart = true;
@@ -28,8 +28,8 @@ void loop()
 
     if (demoStart)
     {
-        Serial.println("#####################################################");
-        Serial.println("*********** Demo Starts! ***********");
+        PrintSeperatingLine('*');
+        PrintInfo("Demo Starts!", '*');
         // 判断所给参数是否合理
         if (CheckDestinationPosition(electrodePositions))
         {
@@ -41,18 +41,15 @@ void loop()
                 {
                     // 再整体全部返回装配位置，等待下一次演示
                     BackToAssemblyPosition();
-
-                    Serial.println("*********** Demo end! ***********");
-                    Serial.println("#####################################################");
                 }
             }
         }
         else
         {
-            Serial.println("*********** Target position needs to be checked! ***********");
-            Serial.println("*********** Demo end! ***********");
-            Serial.println("#####################################################");
+            PrintInfo("Target position needs to be checked!", '*');
         }
+        PrintInfo("Demo end!", '*');
+        PrintSeperatingLine('*');
         demoStart = false;
     }
 }

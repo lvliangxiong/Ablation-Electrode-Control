@@ -216,13 +216,13 @@ void LobotSerialServoUnload(HardwareSerial &SerialX, uint8_t id)
 int LobotSerialServoReceiveHandle(HardwareSerial &SerialX, byte *ret)
 {
     bool frameStarted = false;
-    bool receiveFinished = false;
+    // bool receiveFinished = false;
     byte frameCount = 0;
     byte dataCount = 0;
     byte dataLength = 2;
     byte rxBuf;
     byte recvBuf[32];
-    byte i;
+    // byte i;
 
     while (SerialX.available())
     {
@@ -253,14 +253,15 @@ int LobotSerialServoReceiveHandle(HardwareSerial &SerialX, byte *ret)
                 dataCount = 0;
             }
         }
+        else
         // process the frame when two headers are detected
-        if (frameStarted)
         {
             // fill the received data into recvBuff
             recvBuf[dataCount] = (uint8_t)rxBuf;
             // Serial.print(dataCount);
             // Serial.print(' ');
             // Serial.println(rxBuf);
+
             // obtain the data length
             if (dataCount == 3)
             {
@@ -304,6 +305,7 @@ int LobotSerialServoReceiveHandle(HardwareSerial &SerialX, byte *ret)
             dataCount++;
         }
     }
+    return -1;
 }
 
 // 读取舵机的位置
@@ -311,7 +313,7 @@ int LobotSerialServoReceiveHandle(HardwareSerial &SerialX, byte *ret)
 int LobotSerialServoReadPosition(HardwareSerial &SerialX, uint8_t id)
 {
     int count = 10000;
-    int ret;
+    int ret = -2048;
     byte buf[6];
 
     buf[0] = buf[1] = LOBOT_SERVO_FRAME_HEADER;
@@ -336,23 +338,24 @@ int LobotSerialServoReadPosition(HardwareSerial &SerialX, uint8_t id)
     // 发送读取指令
     SerialX.write(buf, 6);
 
-    // 发送读取指令后，立即进入等待指令返回
+    // 发送读取指令后，立即进入等待指令返回的状态
     while (!SerialX.available())
     {
         count -= 1;
         if (count < 0)
-            return -2048;
+            return ret;
     }
 
     // 成功获得返回值，开始处理返回的数据包
 
     // SerialReceivedPrintln(SerialX);
 
-    if (LobotSerialServoReceiveHandle(SerialX, buf) > 0)
+    byte rxBuf[8];
+    if (LobotSerialServoReceiveHandle(SerialX, rxBuf) > 0)
     {
-        if (buf[4] == LOBOT_SERVO_POS_READ && buf[2] == id)
+        if (rxBuf[4] == LOBOT_SERVO_POS_READ && rxBuf[2] == id)
         {
-            ret = (signed short int)BYTE_TO_HW(buf[6], buf[5]);
+            ret = (signed short int)BYTE_TO_HW(rxBuf[6], rxBuf[5]);
         }
     }
     else
@@ -368,7 +371,7 @@ int LobotSerialServoReadPosition(HardwareSerial &SerialX, uint8_t id)
 int LobotSerialServoReadVin(HardwareSerial &SerialX, uint8_t id)
 {
     int count = 10000;
-    int ret;
+    int ret = -2048;
     byte buf[6];
 
     buf[0] = buf[1] = LOBOT_SERVO_FRAME_HEADER;
@@ -397,14 +400,15 @@ int LobotSerialServoReadVin(HardwareSerial &SerialX, uint8_t id)
     {
         count -= 1;
         if (count < 0)
-            return -2048;
+            return ret;
     }
 
-    if (LobotSerialServoReceiveHandle(SerialX, buf) > 0)
+    byte rxBuf[8];
+    if (LobotSerialServoReceiveHandle(SerialX, rxBuf) > 0)
     {
-        if (buf[4] == LOBOT_SERVO_VIN_READ && buf[2] == id)
+        if (rxBuf[4] == LOBOT_SERVO_VIN_READ && rxBuf[2] == id)
         {
-            ret = (int16_t)BYTE_TO_HW(buf[6], buf[5]);
+            ret = (int16_t)BYTE_TO_HW(rxBuf[6], rxBuf[5]);
         }
     }
     else
@@ -420,7 +424,7 @@ int LobotSerialServoReadVin(HardwareSerial &SerialX, uint8_t id)
 int LobotSerialServoReadOffset(HardwareSerial &SerialX, uint8_t id)
 {
     int count = 10000;
-    int ret;
+    int ret = -2048;
     byte buf[6];
 
     buf[0] = buf[1] = LOBOT_SERVO_FRAME_HEADER;
@@ -449,7 +453,7 @@ int LobotSerialServoReadOffset(HardwareSerial &SerialX, uint8_t id)
     {
         count -= 1;
         if (count < 0)
-            return -2048;
+            return ret;
     }
 
     if (LobotSerialServoReceiveHandle(SerialX, buf) > 0)
