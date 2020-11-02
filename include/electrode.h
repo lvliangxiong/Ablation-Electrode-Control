@@ -135,6 +135,15 @@ void PrintInfo(String str, char padding)
     Serial.println();
 }
 
+char ch[15];
+
+/* double 转 str */
+char *d2str(double d)
+{
+    dtostrf(d, 1, 3, ch);
+    return ch;
+}
+
 /*
 检查目标位置数组的合理性
 
@@ -205,9 +214,8 @@ void CannulaMove(uint8_t id, double position, uint16_t time)
 #ifdef ELECTRODE_DEBUG
     PrintSeperatingLine('-');
     Serial.printf("Electrode id: %d, Servo id: %d\n", id, servoID);
-    Serial.print("Cannula destiniation position: ");
-    Serial.print(position);
-    Serial.printf(" mm, Servo target step: %d\n", step);
+    Serial.printf("Cannula destination position: %s mm, Servo target step: %d\n",
+                  d2str(position), step);
     PrintSeperatingLine('-');
 #endif
     // 给对应servo发送位移指令
@@ -239,9 +247,7 @@ void StyletMove(uint8_t id, double position, uint16_t time)
 #ifdef ELECTRODE_DEBUG
     PrintSeperatingLine('-');
     Serial.printf("Electrode id: %d, Servo id: %d\n", id, servoID);
-    Serial.print("Stylet destiniation position: ");
-    Serial.print(position);
-    Serial.printf(" mm, Servo target step: %d\n", step);
+    Serial.printf("Stylet destination position: %s mm, Servo target step: %d\n", d2str(position), step);
     PrintSeperatingLine('-');
 #endif
     // 给对应servo发送位移指令
@@ -345,9 +351,7 @@ double GetCannulaPosition(uint8_t id)
 #ifdef ELECTRODE_DEBUG
         // Serial.printf 没有办法格式化浮点数
         PrintSeperatingLine('-');
-        Serial.printf("Sub-electrode id: : %d, Current Cannula position: ", id);
-        Serial.print(position);
-        Serial.println(" mm");
+        Serial.printf("Sub-electrode id: : %d, Current Cannula position: %s mm\n", id, d2str(position));
         PrintSeperatingLine('-');
 #endif
         return constrain(position, 0, 20);
@@ -383,9 +387,7 @@ double GetStyletPosition(uint8_t id)
 
 #ifdef ELECTRODE_DEBUG
         PrintSeperatingLine('-');
-        Serial.printf("Sub-electrode id: : %d, Current Stylet position: ", id);
-        Serial.print(position);
-        Serial.println(" mm");
+        Serial.printf("Sub-electrode id: : %d, Current Stylet position: %s mm\n", id, d2str(position));
         PrintSeperatingLine('-');
 #endif
         return constrain(position, 0, 52);
@@ -460,10 +462,12 @@ bool ElectrodePositionWithdraw(uint16_t time)
         delay(time);
 
         unsigned long end_time = millis();
+        unsigned long cost = end_time - start_time;
 
         PrintInfo("All Cannula Withdrawed!", '*');
         PrintInfo("Electrode Withdraw ends!", '*');
-        Serial.printf("Presumed Time Cost: %d ms, Practical Time Cost: %d ms\n", time << 1, end_time - start_time);
+
+        Serial.printf("Presumed Time Cost: %hu ms, Practical Time Cost: %hu ms\n", time << 1, cost);
         PrintSeperatingLine('*');
 
         return true;
@@ -511,29 +515,30 @@ bool ElectrodePositionExpand(double electrodePosition[6], uint16_t time)
     delay(time);
 
     unsigned long end_time = millis();
+    unsigned long cost = end_time - start_time;
+
     PrintInfo("Stylet Expanded!", '*');
     PrintInfo("Electrode Expand ends!", '*');
-    Serial.printf("Presumed Time Cost: %d ms, Practical Time Cost: %d ms\n", time * 3, end_time - start_time);
+
+    Serial.printf("Presumed Time Cost: %hu ms, Practical Time Cost: %hu ms\n", time << 1, cost);
     PrintSeperatingLine('*');
     return true;
 }
 
 /* 返回装配位置函数 */
-void BackToAssemblyPosition()
+void BackToAssemblyPosition(uint16_t time)
 {
-    size_t back_to_assembly_state_time = 3000;
-
     PrintSeperatingLine('*');
     PrintInfo("Backing to the assembly position", '*');
 
-    // 默认在 4 秒内完成所有 servo 的回装配位置的运动
+    // 默认在 3 秒内完成所有 servo 的回装配位置的运动
     for (size_t i = 0; i < 6; i++)
     {
         LobotSerialServoMove(CONTROL_SERIAL, servos[i].id, servos[i].assemblyPosition,
-                             back_to_assembly_state_time);
+                             time);
         delay(1);
     }
-    delay(back_to_assembly_state_time);
+    delay(time);
     PrintInfo("READY FOR ASSEMBLY!", '*');
     delay(1000);
 }
@@ -541,7 +546,7 @@ void BackToAssemblyPosition()
 /* 装配位置初始化函数 */
 void ElectrodePositionAssembly()
 {
-    BackToAssemblyPosition();
+    BackToAssemblyPosition(3000);
 
     // 等待串口上有传输过来的数据，此时任何数据通过串口发送均表示电极已安装完毕，可以进行展开等工作
     while (Serial.available() <= 0)

@@ -33,14 +33,20 @@ void loop()
         // 判断所给参数是否合理
         if (CheckDestinationPosition(electrodePositions))
         {
-            // 先整体全部收回
+            // 从装配位置开始，收回电极，准备消融
             if (ElectrodePositionWithdraw(15000))
             {
-                // 进行电极展开
+                // 穿刺进入人体，电极展开，开始消融
                 if (ElectrodePositionExpand(electrodePositions, 15000))
                 {
-                    // 再整体全部返回装配位置，等待下一次演示
-                    BackToAssemblyPosition();
+                    delay(3000); // 消融 ing
+
+                    // 消融结束，收回电极，退出人体
+                    if (ElectrodePositionWithdraw(15000))
+                    {
+                        // 再整体全部返回装配位置，等待下一次演示
+                        BackToAssemblyPosition(10000);
+                    }
                 }
             }
         }
