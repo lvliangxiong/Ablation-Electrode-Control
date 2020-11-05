@@ -34,3 +34,11 @@ AVARIABLE CONTROL SERIAL ON MEGA2560
 | TX  | D18     | D16     | D14     |
 
 USING Serial to control will interfere with with the program uploading, so serial connections should be temperarily removed until uploading was done.
+
+## 使用
+
+通过上位机的串口给 Mega2560 发送其可以解析的指令即可。
+
+指令格式：`d,d,d,d,d,d`，其中 `d` 代表一个 double 类型的小数，以逗号分隔开。发送指令时，不要再末尾发送换行符，避免发生解析错误。
+
+例如指令 `5,25,10,32,20,52` 就是一个有效的指令。
