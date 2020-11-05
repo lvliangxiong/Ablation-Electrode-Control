@@ -14,6 +14,10 @@
 
 #define MSG_LEN 80
 
+#define FRAME_SENDING_INTERVAL 2
+
+#define DEFAULT_RETRY_TIMES 5
+
 // 存放 servo 的信息
 struct servo
 {
@@ -135,6 +139,7 @@ void PrintInfo(String str, char padding)
     Serial.println();
 }
 
+// 用于存储将 double 数据转为 char 数组
 char ch[15];
 
 /* double 转 str */
@@ -254,7 +259,7 @@ void StyletMove(uint8_t id, double position, uint16_t time)
     LobotSerialServoMove(CONTROL_SERIAL, servoID, step, time);
 }
 
-/* 获取指定 servo id 的 servo 的步数 */
+/* 获取指定 servo id 的 servo 的当前步数 */
 int GetServoStep(uint8_t id, uint8_t retryTimes)
 {
 #ifdef ELECTRODE_DEBUG
@@ -276,6 +281,7 @@ int GetServoStep(uint8_t id, uint8_t retryTimes)
 #ifdef ELECTRODE_DEBUG
         Serial.printf("Get current step of servo (id: %d, return value: %d) error! Retry times left: %d\n",
                       id, ret, retryTimes);
+        delay(FRAME_SENDING_INTERVAL);
 #endif
     }
 #ifdef ELECTRODE_DEBUG
@@ -325,12 +331,11 @@ void SelfExamination()
 /* 获得给定子电极 ID 的外套管位置，单位：mm */
 double GetCannulaPosition(uint8_t id)
 {
-
     // 获得该cannula对应的servo ID
     uint8_t servoID = sub_electrodes[id - 1].cannulaServoID;
 
     // 获得该servo的位置,若获取出错（无响应或者处理出错，则重试）
-    int ret = GetServoStep(servoID, 5);
+    int ret = GetServoStep(servoID, DEFAULT_RETRY_TIMES);
 
     if (ret != -2048 && ret != -2049)
     {
@@ -369,7 +374,7 @@ double GetStyletPosition(uint8_t id)
     uint8_t servoID = sub_electrodes[id - 1].styletServoID;
 
     // 获得该servo的位置,若获取出错（无响应或者处理出错，则重试）
-    int ret = GetServoStep(servoID, 5);
+    int ret = GetServoStep(servoID, DEFAULT_RETRY_TIMES);
 
     if (ret != -2048 && ret != -2049)
     {
@@ -424,7 +429,7 @@ bool styletWithdraw(uint16_t time)
     {
         // 将导丝收回至外套管中
         StyletMove(sub_electrodes[i].id, cannulaPositions[i], time);
-        delay(1);
+        delay(FRAME_SENDING_INTERVAL);
     }
     delay(time);
     PrintInfo("All Stylet Withdrawed!", '*');
@@ -454,9 +459,9 @@ bool ElectrodePositionWithdraw(uint16_t time)
         for (size_t i = 0; i < 3; i++)
         {
             CannulaMove(sub_electrodes[i].id, 0, time);
-            delay(1);
+            delay(FRAME_SENDING_INTERVAL);
             StyletMove(sub_electrodes[i].id, 0, time);
-            delay(1);
+            delay(FRAME_SENDING_INTERVAL);
         }
         // 等待 Cannula 和 Stylet 整体收回穿刺外鞘的运动完成
         delay(time);
@@ -483,7 +488,7 @@ bool ElectrodePositionWithdraw(uint16_t time)
 电极展开函数
 
 电极展开包含三部分运动：
-1. 导丝收回外套管中
+1. 导丝收回外套管中（这里的实现没有这一步，保证在电极收回函数后调用即可保证导丝已经收回外套管）
 2. 导丝和外套管一起穿刺进入组织,到达外套管目标位置
 3. 导丝展开
 
@@ -499,9 +504,9 @@ bool ElectrodePositionExpand(double electrodePosition[6], uint16_t time)
     {
         // 导丝和外套管一起穿刺进入组织,到达外套管目标位置
         CannulaMove(sub_electrodes[i].id, electrodePosition[2 * i], time);
-        delay(1);
+        delay(FRAME_SENDING_INTERVAL);
         StyletMove(sub_electrodes[i].id, electrodePosition[2 * i], time);
-        delay(1);
+        delay(FRAME_SENDING_INTERVAL);
     }
     delay(time);
 
@@ -511,6 +516,7 @@ bool ElectrodePositionExpand(double electrodePosition[6], uint16_t time)
     {
         // 导丝展开
         StyletMove(sub_electrodes[i].id, electrodePosition[2 * i + 1], time);
+        delay(FRAME_SENDING_INTERVAL);
     }
     delay(time);
 
@@ -536,7 +542,7 @@ void BackToAssemblyPosition(uint16_t time)
     {
         LobotSerialServoMove(CONTROL_SERIAL, servos[i].id, servos[i].assemblyPosition,
                              time);
-        delay(1);
+        delay(FRAME_SENDING_INTERVAL);
     }
     delay(time);
     PrintInfo("READY FOR ASSEMBLY!", '*');
