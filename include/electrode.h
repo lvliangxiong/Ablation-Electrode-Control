@@ -537,7 +537,7 @@ void BackToAssemblyPosition(uint16_t time)
     PrintSeperatingLine('*');
     PrintInfo("Backing to the assembly position", '*');
 
-    // 默认在 3 秒内完成所有 servo 的回装配位置的运动
+    // 所有 servo 的回装配位置的运动
     for (size_t i = 0; i < 6; i++)
     {
         LobotSerialServoMove(CONTROL_SERIAL, servos[i].id, servos[i].assemblyPosition,
@@ -552,7 +552,7 @@ void BackToAssemblyPosition(uint16_t time)
 /* 装配位置初始化函数 */
 void ElectrodePositionAssembly()
 {
-    BackToAssemblyPosition(3000);
+    BackToAssemblyPosition(5000);
 
     // 等待串口上有传输过来的数据，此时任何数据通过串口发送均表示电极已安装完毕，可以进行展开等工作
     while (Serial.available() <= 0)
