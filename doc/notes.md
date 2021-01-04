@@ -2,8 +2,6 @@
 
 [TOC]
 
-## [PWM Control](https://www.arduino.cc/en/Tutorial/SecretsOfArduinoPWM)
-
 ## Micro Controller
 
 #### [Arduino MEGA 2560](https://store.arduino.cc/usa/mega-2560-r3)
@@ -123,111 +121,5 @@ Arduino Mega 2560 PIN mapping table
 
 ## Servo
 
-#### [LoBot LD-20MG](https://www.rmigo.com/shop/robot-kits/servos/lobot-ld-20mg-all-metal-gear-standard-digital-servo/)
+#### LoBot LX16A
 
-**Key Features:**
-
-- 20kg High torque. 20kg·cm (277.6 oz·in) @6.6V
-- Full metal gear, accuracy and service life are greatly increased
-- Aluminium Case. Enhance the heat dissipation, ensure the servo motor to work well
-- Using high-precision potentiometer with new design. Accuracy and linearity are improved much more. Accurate movement can satisfy the needs of making robots.
-- 180 degree rotation. Controllable angle from 0 to 180 degrees, Excellent linearity, precision control. Able to be rotated within 360 degrees after power off
-
-**Specifications:**
-
-- Weight: 65g(2.32OZ)
-- Dimension: 40*20*40.5mm(1.57*0.78*1.59inch)
-- Speed: 0.16sec/60°(7.4V)
-- Torque: 20 kg·cm (277.6 oz·in) @6.6V
-- Working Voltage: 6-7.4V
-- Min Working Current: 1A(Our servo needs a larger current than other servo)
-- No-Load Current: 100mA
-- Spline: 25T(6mm in diameter)
-- Servo cable: 30cm(11.8inch) in length
-
-**Control Specifications:** 、
-
-- Control Method: PWM
-- Pulse Width: 500~2500
-- Duty Ratio: 0.5ms~2.5ms
-- Pulse Period: 20ms
-
-Please make sure that the duty cycle of the controller you are using conform to our specifications, otherwise the servo can’t turn up to claimed degree.
-
-**Wire Layout:**
-
-- Red Wire: +
-- Black Wire: GND
-- White Wire: PWM/Signal
-
-**What’s in the package:**
-
-- Digital servo x1
-- Servo horn kit x1 (as shown in the figure)
-
-**Note:**
-
-Please be sure to avoid locked-rotor when using servo, locked-rotor means that artificially or machine obstructs the servo to rotate normally, the locked-rotor will lead to internal current increased to more than 7 times and the temperature increases, servo will burn out.
-
-**Important:**
-
-1. Connect GND is necessary.
-2. It’s recommended that use lithium polymer battery with high rate discharge (min 5C), please don’t use dry battery.
-3. Please use a short and thick power cord, don’t use Dupont cord.
-4. Not compatible for Redcat thunder drift RC car, not compatible for 1/16 scale car.
-
-![img](images/LoBot-LD-20MG-Metal-Gear-Digital-Servo.jpg)
-
----
-
-==**NOTE**==
-
-The position control, rather angle control was based on the pulse width control of the PWM onto the white wire.
-
-The pulse period was 20ms.
-
-The pulse width (high voltage) should be in the range of 0.5 ~ 2.5 $ms$, which can be mapped to the angle from 0° ~ 180°. As a result, the duty ratio should be in the range of $2.5\%$ ~ $12.5\%$. The duty ratio in the center should be $7.5\%$.
-
-This might be a litter bit confusing, since a continuous PWM wave will be control the servo to be locked, and only by changing the duty ratio the engine will be moving to another position(angle).
-
-==**_ATTENTION_**==
-
-When wiring, make sure the ground is correctly connected. The power source and the board generating PWM signal should be co-connected. Otherwise, the servo won't be working properly.
-
----
-
-#### [LX-224HV](https://www.hiwonder.hk/products/hiwonder-lx-224-hv-three-connectors-bus-servo)
-
-Hiwonder LX-224 three channels bus high voltage servo is a serial bus servo with three connectors. Compared with the traditional 7.4v servo, the 11.1V high-voltage servo can reduce the current by more than 60%. The servo can also be connected in series, simplifying the wire connection.
-
-**Feature**
-
-- Use serial bus servo connector to connect the servo one by one, beautify the looking and facilitate the wiring.
-- The internal high accuracy potentiometer can receive angle feedback of the robot.
-- High voltage servo significantly reduces the power needs and increases the service time of servo.
-- Use high-precision potentiometer to feedback the angle position.
-- Equipped with position/temperature/voltage feedback, protect the servo from burning.
-- Support two working mode: Servo mode ( rotation range: 0-240) and Gear motor mode ( rotation range: 0-360).
-- Use metal gear to extend the service time.
-- Fixed double-shaft drives the rotation of the bracket and maintains the stability of robot joints.
-
-| Item            | Specification                                      |
-| --------------- | -------------------------------------------------- |
-| Weight          | 60g                                                |
-| Dimension       | 39.82mm*20.09mm*51.10mm(1.57inch*0.8inch*2.02inch) |
-| Speed           | 0.18sec/60°(11.1V)                                 |
-| Accuracy        | 0.24°                                              |
-| Torque          | 20kg.cm/11.1V                                      |
-| Nominal Voltage | 11.1V                                              |
-| Working Voltage | 9-12V                                              |
-| Default Wire    | 20cm(7.9inch) in length                            |
-
----
-
-==**_ATTENTION_**==
-
-When used with Arduino Mega 2560 & [the debugging board](https://www.hiwonder.hk/products/hiwonder-ttl-usb-debugging-board), code uploading might fail.
-
-Breaking the connection of serial pin between Mega and debugging board is the solution.
-
----

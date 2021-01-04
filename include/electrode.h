@@ -8,6 +8,15 @@
 #define SERVO_ID5 5
 #define SERVO_ID6 6
 
+// 10 step/s = 10/1000 step/ms <======> 100 ms/step
+// 20 step/s                   <======> 50 ms/step
+// 30 step/s                   <======> 33 ms/step
+// 50 step/s                   <======> 20 ms/step
+// 100 step/s                  <======> 10 ms/step
+#define ASSEMBLY_WITHDRAW_SPEED_WITHOUT_LOAD 50
+#define ASSEMBLY_WITHDRAW_SPEED_WITH_LOAD 30
+#define WORKING_SPEED 30
+
 // Serial 1 的 RX 的 PIN 为 D19
 // Serial 1 的 TX 的 PIN 为 D18
 #define CONTROL_SERIAL Serial1
@@ -23,10 +32,10 @@ struct servo
 {
     // 舵机 id
     uint8_t id;
-    // 装配时，舵机的位置
-    int16_t assemblyPosition;
-    // 电极完全收回时，舵机的位置
-    int16_t withdrawPosition;
+    // 装配时，舵机的步数
+    int16_t assemblyStep;
+    // 电极完全收回时，舵机的步数
+    int16_t withdrawStep;
 };
 
 // 存放 一组子电极 的信息，包括外套管和导丝
@@ -50,9 +59,9 @@ const uint16_t CANNULA_STROKE_SERVO_STEPS = 382;
 // 导丝的运动行程，也就是 52mm 对应的舵机的步数
 const uint16_t STYLET_STROKE_SERVO_STEPS = 993;
 // 舵机可用的最大步数
-const uint16_t SERVO_POSITION_RANGE_MAX = 1000;
+const uint16_t SERVO_STEP_RANGE_MAX = 1000;
 // 舵机可用的最小步数
-const uint16_t SERVO_POSITION_RANGE_MIN = 0;
+const uint16_t SERVO_STEP_RANGE_MIN = 0;
 
 servo servos[6];
 sub_electrode sub_electrodes[3];
@@ -60,7 +69,7 @@ sub_electrode sub_electrodes[3];
 /*
 初始化舵机
 
-舵机编号  装配位置  完全收回位置     |    舵机编号  装配位置   完全收回位置
+舵机编号  装配步数  完全收回步数     |    舵机编号  装配步数   完全收回步数
   1        0        382                3       1000    1000-382=618
   2        0        993                4       1000    1000-993=7
   5        0        382                6       1000    1000-993=7
@@ -69,30 +78,30 @@ void ServoDefinition()
 {
     // 第一组电极
     servos[0].id = 1;
-    servos[0].assemblyPosition = SERVO_POSITION_RANGE_MIN;
-    servos[0].withdrawPosition = servos[0].assemblyPosition + CANNULA_STROKE_SERVO_STEPS;
+    servos[0].assemblyStep = SERVO_STEP_RANGE_MIN;
+    servos[0].withdrawStep = servos[0].assemblyStep + CANNULA_STROKE_SERVO_STEPS;
 
     servos[1].id = 2;
-    servos[1].assemblyPosition = SERVO_POSITION_RANGE_MIN;
-    servos[1].withdrawPosition = servos[1].assemblyPosition + STYLET_STROKE_SERVO_STEPS;
+    servos[1].assemblyStep = SERVO_STEP_RANGE_MIN;
+    servos[1].withdrawStep = servos[1].assemblyStep + STYLET_STROKE_SERVO_STEPS;
 
     // 第二组电极
     servos[2].id = 3;
-    servos[2].assemblyPosition = SERVO_POSITION_RANGE_MAX;
-    servos[2].withdrawPosition = servos[2].assemblyPosition - CANNULA_STROKE_SERVO_STEPS;
+    servos[2].assemblyStep = SERVO_STEP_RANGE_MAX;
+    servos[2].withdrawStep = servos[2].assemblyStep - CANNULA_STROKE_SERVO_STEPS;
 
     servos[3].id = 4;
-    servos[3].assemblyPosition = SERVO_POSITION_RANGE_MAX;
-    servos[3].withdrawPosition = servos[3].assemblyPosition - STYLET_STROKE_SERVO_STEPS;
+    servos[3].assemblyStep = SERVO_STEP_RANGE_MAX;
+    servos[3].withdrawStep = servos[3].assemblyStep - STYLET_STROKE_SERVO_STEPS;
 
     // 第三组电极
     servos[4].id = 5;
-    servos[4].assemblyPosition = SERVO_POSITION_RANGE_MIN;
-    servos[4].withdrawPosition = servos[4].assemblyPosition + CANNULA_STROKE_SERVO_STEPS;
+    servos[4].assemblyStep = SERVO_STEP_RANGE_MIN;
+    servos[4].withdrawStep = servos[4].assemblyStep + CANNULA_STROKE_SERVO_STEPS;
 
     servos[5].id = 6;
-    servos[5].assemblyPosition = SERVO_POSITION_RANGE_MAX;
-    servos[5].withdrawPosition = servos[5].assemblyPosition - STYLET_STROKE_SERVO_STEPS;
+    servos[5].assemblyStep = SERVO_STEP_RANGE_MAX;
+    servos[5].withdrawStep = servos[5].assemblyStep - STYLET_STROKE_SERVO_STEPS;
 }
 
 /* 初始化电极和舵机的对应关系 */
@@ -149,6 +158,25 @@ char *d2str(double d)
     return ch;
 }
 
+void PauseAndWaitForCommand()
+{
+    PrintInfo("Wait for command to continue...", '*');
+    // 等待串口上有传输过来的数据，此时任何数据通过串口发送均表示可以开始下一步动作
+    while (Serial.available() <= 0)
+    {
+        ;
+    }
+    if (Serial.available() > 0)
+    {
+        // 接收串口数据，但是并不进行任何操作
+        while (Serial.available() > 0)
+        {
+            Serial.read();
+            delay(2); // 等待一会再接收下一个
+        }
+    }
+}
+
 /*
 检查目标位置数组的合理性
 
@@ -185,14 +213,59 @@ bool CheckDestinationPosition(double position[6])
     return true;
 }
 
+/* 获取指定 servo id 的 servo 的当前步数 */
+int GetServoStep(uint8_t id, uint8_t retryTimes)
+{
+    int ret;
+    while (retryTimes > 0)
+    {
+        ret = LobotSerialServoReadStep(CONTROL_SERIAL, id);
+        if (ret != -2048 && ret != -2049)
+        {
+
+#ifdef ELECTRODE_DEBUG
+            Serial.printf("Successfully obatin servo (id: %d) step: %d\n", id, ret);
+#endif
+            break;
+        }
+        retryTimes--;
+        Serial.printf("Get current step of servo (id: %d, return value: %d) error! Retry times left: %d\n",
+                      id, ret, retryTimes);
+        delay(FRAME_SENDING_INTERVAL);
+    }
+    return ret;
+}
+
+// 52 mm 约为 1000 步，传入的 time 参数范围是 [0, 30000]，单位是 ms
+// 一个比较合适的速度区间为 1mm/s ~ 5mm/s，因此 speed 值得大概区间为 20 step/s ~ 100 step/s
+uint16_t LobotSerialServoMoveWithSpeed(HardwareSerial &SerialX, uint8_t id, int16_t target_steps,
+                                       byte speed)
+{
+    Serial.println();
+    PrintInfo("Sending Command to Servo Start", '*');
+    target_steps = constrain(target_steps, 0, 1000);
+    int16_t current_steps = GetServoStep(id, 5);
+    if (current_steps == -2048 || current_steps == -2049)
+    {
+        return -1;
+    }
+    uint16_t time = abs(target_steps - current_steps) * (long)1000 / speed;
+    time = constrain(time, 0, 30000);
+    Serial.printf("Servo %d, current_step %d, target step %d, in %d ms\n", id, current_steps, target_steps, time);
+    LobotSerialServoMove(SerialX, id, target_steps, time);
+    PrintInfo("Sending Command to Servo End", '*');
+    Serial.println();
+    return time;
+}
+
 /*
 外套管移动函数
 输入：
     id            外套管对应的子电极 id
     position      外套管绝对位置(range: [0, 20], unit: mm)
-    time          运动时间
+    speed         运动速度，mm/s
 */
-void CannulaMove(uint8_t id, double position, uint16_t time)
+int16_t CannulaMove(uint8_t id, double position, byte speed)
 {
     // 将目标位置限制在 [0, 20] mm 之间
     position = constrain(position, 0.0, 20.0);
@@ -206,8 +279,8 @@ void CannulaMove(uint8_t id, double position, uint16_t time)
     {
         // withdrawPosition <-------------->    assemblyPosition
         // 0                <-------------->    CANNULA_STROKE
-        int16_t withdrawPosition = servos[servoID - 1].withdrawPosition;
-        int16_t assemblyPosition = servos[servoID - 1].assemblyPosition;
+        int16_t withdrawPosition = servos[servoID - 1].withdrawStep;
+        int16_t assemblyPosition = servos[servoID - 1].assemblyStep;
 
         step = (withdrawPosition - assemblyPosition) / (0 - CANNULA_STROKE) * position + withdrawPosition;
     }
@@ -224,11 +297,11 @@ void CannulaMove(uint8_t id, double position, uint16_t time)
     PrintSeperatingLine('-');
 #endif
     // 给对应servo发送位移指令
-    LobotSerialServoMove(CONTROL_SERIAL, servoID, step, time);
+    return LobotSerialServoMoveWithSpeed(CONTROL_SERIAL, servoID, step, speed);
 }
 
 /* 导丝移动函数 */
-void StyletMove(uint8_t id, double position, uint16_t time)
+int16_t StyletMove(uint8_t id, double position, byte speed)
 {
     position = constrain(position, 0.0, 52.0);
     // 获得该导丝对应的舵机的 id
@@ -239,55 +312,29 @@ void StyletMove(uint8_t id, double position, uint16_t time)
     {
         // withdrawPosition <-------------->    assemblyPosition
         // 0                <-------------->    CANNULA_STROKE
-        int16_t withdrawPosition = servos[servoID - 1].withdrawPosition;
-        int16_t assemblyPosition = servos[servoID - 1].assemblyPosition;
+        int16_t withdrawPosition = servos[servoID - 1].withdrawStep;
+        int16_t assemblyPosition = servos[servoID - 1].assemblyStep;
 
         step = (withdrawPosition - assemblyPosition) / (0 - STYLET_STROKE) * position + withdrawPosition;
     }
     else
     {
         Serial.println("Sub-electrode ID Input ERROR!");
-        return;
+        return -1;
     }
 #ifdef ELECTRODE_DEBUG
     PrintSeperatingLine('-');
     Serial.printf("Electrode id: %d, Servo id: %d\n", id, servoID);
     Serial.printf("Stylet destination position: %s mm, Servo target step: %d\n", d2str(position), step);
-    PrintSeperatingLine('-');
 #endif
+
     // 给对应servo发送位移指令
-    LobotSerialServoMove(CONTROL_SERIAL, servoID, step, time);
-}
+    int time = LobotSerialServoMoveWithSpeed(CONTROL_SERIAL, servoID, step, speed);
 
-/* 获取指定 servo id 的 servo 的当前步数 */
-int GetServoStep(uint8_t id, uint8_t retryTimes)
-{
 #ifdef ELECTRODE_DEBUG
     PrintSeperatingLine('-');
 #endif
-    int ret;
-    while (retryTimes > 0)
-    {
-        ret = LobotSerialServoReadPosition(CONTROL_SERIAL, id);
-        if (ret != -2048 && ret != -2049)
-        {
-
-#ifdef ELECTRODE_DEBUG
-            Serial.printf("Successfully obatin servo (id: %d) step: %d\n", id, ret);
-#endif
-            break;
-        }
-        retryTimes--;
-#ifdef ELECTRODE_DEBUG
-        Serial.printf("Get current step of servo (id: %d, return value: %d) error! Retry times left: %d\n",
-                      id, ret, retryTimes);
-        delay(FRAME_SENDING_INTERVAL);
-#endif
-    }
-#ifdef ELECTRODE_DEBUG
-    PrintSeperatingLine('-');
-#endif
-    return ret;
+    return time;
 }
 
 void SelfExamination()
@@ -314,14 +361,14 @@ void SelfExamination()
 
         Serial.printf("\t [cannula servo]\n");
         Serial.printf("\t\t id: %d\n", se.cannulaServoID);
-        Serial.printf("\t\t assemlby position: %d\n", servos[se.cannulaServoID - 1].assemblyPosition);
-        Serial.printf("\t\t withdraw position: %d\n", servos[se.cannulaServoID - 1].withdrawPosition);
+        Serial.printf("\t\t assemlby position: %d\n", servos[se.cannulaServoID - 1].assemblyStep);
+        Serial.printf("\t\t withdraw position: %d\n", servos[se.cannulaServoID - 1].withdrawStep);
         Serial.printf("\t\t current step: %d\n", steps[se.cannulaServoID - 1]);
 
         Serial.printf("\t [stylet servo]\n");
         Serial.printf("\t\t id: %d\n", se.styletServoID);
-        Serial.printf("\t\t assemlby position: %d\n", servos[se.styletServoID - 1].assemblyPosition);
-        Serial.printf("\t\t withdraw position: %d\n", servos[se.styletServoID - 1].withdrawPosition);
+        Serial.printf("\t\t assemlby position: %d\n", servos[se.styletServoID - 1].assemblyStep);
+        Serial.printf("\t\t withdraw position: %d\n", servos[se.styletServoID - 1].withdrawStep);
         Serial.printf("\t\t current step: %d\n", steps[se.styletServoID - 1]);
     }
     PrintSeperatingLine('-');
@@ -345,9 +392,9 @@ double GetCannulaPosition(uint8_t id)
         // 0                   <===>    CANNULA_STROKE       <===>     answer
 
         // 获得该servo的装配状态位置
-        int16_t withdrawPosition = servos[servoID - 1].withdrawPosition;
+        int16_t withdrawPosition = servos[servoID - 1].withdrawStep;
         // 获得该servo的收回状态位置
-        int16_t assemblyPosition = servos[servoID - 1].assemblyPosition;
+        int16_t assemblyPosition = servos[servoID - 1].assemblyStep;
 
         // 根据servo的位置计算cannula对应的位置
         double position = (step - withdrawPosition) * (0 - CANNULA_STROKE) /
@@ -355,9 +402,7 @@ double GetCannulaPosition(uint8_t id)
 
 #ifdef ELECTRODE_DEBUG
         // Serial.printf 没有办法格式化浮点数
-        PrintSeperatingLine('-');
-        Serial.printf("Sub-electrode id: : %d, Current Cannula position: %s mm\n", id, d2str(position));
-        PrintSeperatingLine('-');
+        Serial.printf("Sub-electrode id: %d, Current Cannula position: %s mm\n", id, d2str(position));
 #endif
         return constrain(position, 0, 20);
     }
@@ -368,6 +413,7 @@ double GetCannulaPosition(uint8_t id)
     }
 }
 
+/* 获得给定子电极 ID 的位置，单位：mm */
 double GetStyletPosition(uint8_t id)
 {
     // 获得该stylet对应的servo ID
@@ -384,16 +430,14 @@ double GetStyletPosition(uint8_t id)
         // 0                   <===>    STYLET_STROKE        <===>     answer
 
         // 获得该servo的装配状态位置
-        int16_t withdrawPosition = servos[servoID - 1].withdrawPosition;
+        int16_t withdrawPosition = servos[servoID - 1].withdrawStep;
         // 获得该servo的收回状态位置
-        int16_t assemblyPosition = servos[servoID - 1].assemblyPosition;
+        int16_t assemblyPosition = servos[servoID - 1].assemblyStep;
         // 根据servo的位置计算stylet对应的位置
         double position = (step - withdrawPosition) * (0 - STYLET_STROKE) / (withdrawPosition - assemblyPosition);
 
 #ifdef ELECTRODE_DEBUG
-        PrintSeperatingLine('-');
-        Serial.printf("Sub-electrode id: : %d, Current Stylet position: %s mm\n", id, d2str(position));
-        PrintSeperatingLine('-');
+        Serial.printf("Sub-electrode id: %d, Current Stylet position: %s mm\n", id, d2str(position));
 #endif
         return constrain(position, 0, 52);
     }
@@ -405,10 +449,11 @@ double GetStyletPosition(uint8_t id)
 }
 
 /* 将导丝收回外套管的函数 */
-bool styletWithdraw(uint16_t time)
+bool styletWithdraw(byte speed)
 {
     PrintInfo("Stylet withdraw begin", '*');
     double cannulaPositions[3];
+    int time = -1;
     for (size_t i = 0; i < 3; i++)
     {
         // 获得外套管位置
@@ -428,8 +473,11 @@ bool styletWithdraw(uint16_t time)
     for (size_t i = 0; i < 3; i++)
     {
         // 将导丝收回至外套管中
-        StyletMove(sub_electrodes[i].id, cannulaPositions[i], time);
-        delay(FRAME_SENDING_INTERVAL);
+        int required_time = StyletMove(sub_electrodes[i].id, cannulaPositions[i], speed);
+        if (time < required_time)
+        {
+            time = required_time;
+        }
     }
     delay(time);
     PrintInfo("All Stylet Withdrawed!", '*');
@@ -445,23 +493,29 @@ bool styletWithdraw(uint16_t time)
 
 注意：运行此函数以堵塞方式运行，直到运动到收回状态
 */
-bool ElectrodePositionWithdraw(uint16_t time)
+bool ElectrodePositionWithdraw(byte speed)
 {
     PrintSeperatingLine('*');
     PrintInfo("Electrode Withdraw Starts!", '*');
 
     unsigned long start_time = millis();
+    int time = -1;
 
     // 将 Stylet 收回外套管
-    if (styletWithdraw(time))
+    if (styletWithdraw(speed))
     {
         // 同时收回外套管和导丝
         for (size_t i = 0; i < 3; i++)
         {
-            CannulaMove(sub_electrodes[i].id, 0, time);
+            int required_time = CannulaMove(sub_electrodes[i].id, 0, speed);
             delay(FRAME_SENDING_INTERVAL);
-            StyletMove(sub_electrodes[i].id, 0, time);
+            StyletMove(sub_electrodes[i].id, 0, speed);
             delay(FRAME_SENDING_INTERVAL);
+
+            if (time < required_time)
+            {
+                time = required_time;
+            }
         }
         // 等待 Cannula 和 Stylet 整体收回穿刺外鞘的运动完成
         delay(time);
@@ -494,29 +548,40 @@ bool ElectrodePositionWithdraw(uint16_t time)
 
 注意：运行此函数将堵塞线程，直到运动到目标状态。
 */
-bool ElectrodePositionExpand(double electrodePosition[6], uint16_t time)
+bool ElectrodePositionExpand(double electrodePosition[6], byte speed)
 {
     PrintSeperatingLine('*');
     PrintInfo("Electrode Expand Starts!", '*');
     unsigned long start_time = millis();
+    int time = -1;
 
     for (size_t i = 0; i < 3; i++)
     {
         // 导丝和外套管一起穿刺进入组织,到达外套管目标位置
-        CannulaMove(sub_electrodes[i].id, electrodePosition[2 * i], time);
+        int required_time = CannulaMove(sub_electrodes[i].id, electrodePosition[2 * i], speed);
         delay(FRAME_SENDING_INTERVAL);
-        StyletMove(sub_electrodes[i].id, electrodePosition[2 * i], time);
+        StyletMove(sub_electrodes[i].id, electrodePosition[2 * i], speed);
         delay(FRAME_SENDING_INTERVAL);
+
+        if (time < required_time)
+        {
+            time = required_time;
+        }
     }
     delay(time);
 
     PrintInfo("Cannula Expanded!", '*');
 
+    time = -1;
     for (size_t i = 0; i < 3; i++)
     {
         // 导丝展开
-        StyletMove(sub_electrodes[i].id, electrodePosition[2 * i + 1], time);
+        int required_time = StyletMove(sub_electrodes[i].id, electrodePosition[2 * i + 1], speed);
         delay(FRAME_SENDING_INTERVAL);
+        if (time < required_time)
+        {
+            time = required_time;
+        }
     }
     delay(time);
 
@@ -532,46 +597,38 @@ bool ElectrodePositionExpand(double electrodePosition[6], uint16_t time)
 }
 
 /* 返回装配位置函数 */
-void BackToAssemblyPosition(uint16_t time)
+void BackToAssemblyPosition()
 {
     PrintSeperatingLine('*');
     PrintInfo("Backing to the assembly position", '*');
+    int time = -1;
 
     // 所有 servo 的回装配位置的运动
     for (size_t i = 0; i < 6; i++)
     {
-        LobotSerialServoMove(CONTROL_SERIAL, servos[i].id, servos[i].assemblyPosition,
-                             time);
+        int required_time = LobotSerialServoMoveWithSpeed(CONTROL_SERIAL, servos[i].id, servos[i].assemblyStep,
+                                                          ASSEMBLY_WITHDRAW_SPEED_WITHOUT_LOAD);
         delay(FRAME_SENDING_INTERVAL);
+
+        if (time < required_time)
+        {
+            time = required_time;
+        }
     }
     delay(time);
     PrintInfo("READY FOR ASSEMBLY!", '*');
-    delay(1000);
 }
 
 /* 装配位置初始化函数 */
 void ElectrodePositionAssembly()
 {
-    BackToAssemblyPosition(5000);
+    // 空载回装配位置
+    BackToAssemblyPosition();
 
-    // 等待串口上有传输过来的数据，此时任何数据通过串口发送均表示电极已安装完毕，可以进行展开等工作
-    while (Serial.available() <= 0)
-    {
-        ;
-    }
-    if (Serial.available() > 0)
-    {
-        // 接受串口数据，但是并不进行任何操作
-        while (Serial.available() > 0)
-        {
-            Serial.read();
-            delay(5); // 等待一会再接收下一个
-        }
-    }
-    delay(1000);
+    PauseAndWaitForCommand();
+
     PrintInfo("ASSEMBLY DONE!", '*');
     PrintSeperatingLine('*');
-    delay(1000);
 }
 
 void AblationElectrodeInit()

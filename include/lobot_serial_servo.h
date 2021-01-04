@@ -52,18 +52,18 @@ byte LobotCheckSum(byte buf[])
 }
 
 // 转动到指定位置函数
-// position range: [0, 1000] correspond to [0, 240] unit: degree
+// step range: [0, 1000] correspond to [0, 240]
 // time range: [0, 30000] unit: ms
-void LobotSerialServoMove(HardwareSerial &SerialX, uint8_t id, int16_t position, uint16_t time)
+void LobotSerialServoMove(HardwareSerial &SerialX, uint8_t id, int16_t step, uint16_t time)
 {
     byte buf[10];
-    position = constrain(position, 0, 1000);
+    step = constrain(step, 0, 1000);
     buf[0] = buf[1] = LOBOT_SERVO_FRAME_HEADER;
     buf[2] = id;
     buf[3] = 7;
     buf[4] = LOBOT_SERVO_MOVE_TIME_WRITE;
-    buf[5] = GET_LOW_BYTE(position);
-    buf[6] = GET_HIGH_BYTE(position);
+    buf[5] = GET_LOW_BYTE(step);
+    buf[6] = GET_HIGH_BYTE(step);
     buf[7] = GET_LOW_BYTE(time);
     buf[8] = GET_HIGH_BYTE(time);
     buf[9] = LobotCheckSum(buf);
@@ -310,7 +310,7 @@ int LobotSerialServoReceiveHandle(HardwareSerial &SerialX, byte *ret)
 
 // 读取舵机的位置
 // 返回值：-2048代表无响应；-2049代表串口返回数据处理出现问题
-int LobotSerialServoReadPosition(HardwareSerial &SerialX, uint8_t id)
+int LobotSerialServoReadStep(HardwareSerial &SerialX, uint8_t id)
 {
     int count = 10000;
     int ret = -2048;

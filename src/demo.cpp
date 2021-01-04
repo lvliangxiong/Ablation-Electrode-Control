@@ -15,6 +15,7 @@ void setup()
 void loop()
 {
     // put your main code here, to run repeatedly :
+    // 读取串口位置指令
     if (Serial.available() > 0)
     {
         while (Serial.available() > 0 && i < 6)
@@ -26,6 +27,7 @@ void loop()
         }
     }
 
+    // 判断是否接收到 6 个位置指令
     if (i == 6)
     {
         if (Serial.available() > 0)
@@ -55,18 +57,25 @@ void loop()
         if (CheckDestinationPosition(positions))
         {
             // 从装配位置开始，收回电极，准备消融
-            if (ElectrodePositionWithdraw(15000))
+            if (ElectrodePositionWithdraw(WORKING_SPEED))
             {
+                PrintInfo("Preparing to puncture...", '*');
+                PauseAndWaitForCommand();
                 // 穿刺进入人体，电极展开，开始消融
-                if (ElectrodePositionExpand(positions, 15000))
+                if (ElectrodePositionExpand(positions, WORKING_SPEED))
                 {
+                    PrintInfo("Ablating...", '*');
                     delay(3000); // 消融 ing
 
+                    PauseAndWaitForCommand();
+
                     // 消融结束，收回电极，退出人体
-                    if (ElectrodePositionWithdraw(15000))
+                    if (ElectrodePositionWithdraw(WORKING_SPEED))
                     {
+                        PrintInfo("Ablation Done!", '*');
+                        PauseAndWaitForCommand();
                         // 再整体全部返回装配位置，等待下一次演示
-                        BackToAssemblyPosition(10000);
+                        BackToAssemblyPosition();
                     }
                 }
             }
