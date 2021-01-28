@@ -13,9 +13,10 @@
 // 30 step/s                   <======> 33 ms/step
 // 50 step/s                   <======> 20 ms/step
 // 100 step/s                  <======> 10 ms/step
-#define ASSEMBLY_WITHDRAW_SPEED_WITHOUT_LOAD 50
-#define ASSEMBLY_WITHDRAW_SPEED_WITH_LOAD 30
-#define WORKING_SPEED 30
+
+// 第一次启动系统时，驱动系统回复到装配位置时，针运动的速度
+#define ASSEMBLY_WITHDRAW_SPEED 50
+
 
 // Serial 1 的 RX 的 PIN 为 D19
 // Serial 1 的 TX 的 PIN 为 D18
@@ -86,6 +87,7 @@ void ServoDefinition()
     servos[1].withdrawStep = servos[1].assemblyStep + STYLET_STROKE_SERVO_STEPS;
 
     // 第二组电极
+    // 
     servos[2].id = 3;
     servos[2].assemblyStep = SERVO_STEP_RANGE_MAX;
     servos[2].withdrawStep = servos[2].assemblyStep - CANNULA_STROKE_SERVO_STEPS;
@@ -287,7 +289,7 @@ int16_t CannulaMove(uint8_t id, double position, byte speed)
     else
     {
         PrintInfo("Sub-electrode ID Input ERROR!", '*');
-        return;
+        return -1;
     }
 #ifdef ELECTRODE_DEBUG
     PrintSeperatingLine('-');
@@ -526,7 +528,7 @@ bool ElectrodePositionWithdraw(byte speed)
         PrintInfo("All Cannula Withdrawed!", '*');
         PrintInfo("Electrode Withdraw ends!", '*');
 
-        Serial.printf("Presumed Time Cost: %hu ms, Practical Time Cost: %hu ms\n", time << 1, cost);
+        Serial.printf("Practical Time Cost: %hu ms\n", cost);
         PrintSeperatingLine('*');
 
         return true;
@@ -591,23 +593,23 @@ bool ElectrodePositionExpand(double electrodePosition[6], byte speed)
     PrintInfo("Stylet Expanded!", '*');
     PrintInfo("Electrode Expand ends!", '*');
 
-    Serial.printf("Presumed Time Cost: %hu ms, Practical Time Cost: %hu ms\n", time << 1, cost);
+    Serial.printf("Practical Time Cost: %hu ms\n", cost);
     PrintSeperatingLine('*');
     return true;
 }
 
-/* 返回装配位置函数 */
+/* 返回装配位置 */
 void BackToAssemblyPosition()
 {
     PrintSeperatingLine('*');
     PrintInfo("Backing to the assembly position", '*');
     int time = -1;
 
-    // 所有 servo 的回装配位置的运动
+    // 所有 servo 返回到装配位置的运动，外套管先运动，导丝后运动
     for (size_t i = 0; i < 6; i++)
     {
         int required_time = LobotSerialServoMoveWithSpeed(CONTROL_SERIAL, servos[i].id, servos[i].assemblyStep,
-                                                          ASSEMBLY_WITHDRAW_SPEED_WITHOUT_LOAD);
+                                                          ASSEMBLY_WITHDRAW_SPEED);
         delay(FRAME_SENDING_INTERVAL);
 
         if (time < required_time)
@@ -619,8 +621,8 @@ void BackToAssemblyPosition()
     PrintInfo("READY FOR ASSEMBLY!", '*');
 }
 
-/* 装配位置初始化函数 */
-void ElectrodePositionAssembly()
+/* 驱动系统初始化到装配位置，6 个舵机同时运动 */
+void ElectrodePositionAssemblyInit()
 {
     // 空载回装配位置
     BackToAssemblyPosition();
@@ -647,5 +649,5 @@ void AblationElectrodeInit()
 
     SelfExamination();
 
-    ElectrodePositionAssembly();
+    ElectrodePositionAssemblyInit();
 }

@@ -2,19 +2,26 @@
 #include "lobot_serial_servo.h"
 #include "electrode.h"
 
+
+// 10 step/s = 10/1000 step/ms <======> 100 ms/step
+// 20 step/s                   <======> 50 ms/step
+// 30 step/s                   <======> 33 ms/step
+// 50 step/s                   <======> 20 ms/step
+// 100 step/s                  <======> 10 ms/step
+
+#define WORKING_SPEED 20
+
 bool start = false;
 double positions[6];
 int i = 0;
 
 void setup()
 {
-    // put your setup code here, to run once:
     AblationElectrodeInit();
 }
 
 void loop()
 {
-    // put your main code here, to run repeatedly :
     // 读取串口位置指令
     if (Serial.available() > 0)
     {
