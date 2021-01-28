@@ -6,10 +6,11 @@
 // 10 step/s = 10/1000 step/ms <======> 100 ms/step
 // 20 step/s                   <======> 50 ms/step
 // 30 step/s                   <======> 33 ms/step
+// 40 step/s                   <======> 25 ms/step
 // 50 step/s                   <======> 20 ms/step
 // 100 step/s                  <======> 10 ms/step
 
-#define WORKING_SPEED 20
+#define WORKING_SPEED 30
 
 bool start = false;
 double positions[6];
@@ -82,7 +83,7 @@ void loop()
                         PrintInfo("Ablation Done!", '*');
                         PauseAndWaitForCommand();
                         // 再整体全部返回装配位置，等待下一次演示
-                        BackToAssemblyPosition();
+                        // BackToAssemblyPosition();
                     }
                 }
             }

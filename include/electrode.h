@@ -11,6 +11,7 @@
 // 10 step/s = 10/1000 step/ms <======> 100 ms/step
 // 20 step/s                   <======> 50 ms/step
 // 30 step/s                   <======> 33 ms/step
+// 40 step/s                   <======> 25 ms/step
 // 50 step/s                   <======> 20 ms/step
 // 100 step/s                  <======> 10 ms/step
 
@@ -509,9 +510,11 @@ bool ElectrodePositionWithdraw(byte speed)
         // 同时收回外套管和导丝
         for (size_t i = 0; i < 3; i++)
         {
-            int required_time = CannulaMove(sub_electrodes[i].id, 0, speed);
+            // 先给导丝发送收回指令，再给外套管发送收回指令
+            int required_time = StyletMove(sub_electrodes[i].id, 0, speed);
             delay(FRAME_SENDING_INTERVAL);
-            StyletMove(sub_electrodes[i].id, 0, speed);
+
+            CannulaMove(sub_electrodes[i].id, 0, speed);
             delay(FRAME_SENDING_INTERVAL);
 
             if (time < required_time)
@@ -560,6 +563,7 @@ bool ElectrodePositionExpand(double electrodePosition[6], byte speed)
     for (size_t i = 0; i < 3; i++)
     {
         // 导丝和外套管一起穿刺进入组织,到达外套管目标位置
+        // 这里先给外套管发送运动指令，后给导丝发送运动指令
         int required_time = CannulaMove(sub_electrodes[i].id, electrodePosition[2 * i], speed);
         delay(FRAME_SENDING_INTERVAL);
         StyletMove(sub_electrodes[i].id, electrodePosition[2 * i], speed);
